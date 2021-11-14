@@ -6,7 +6,7 @@ use diesel::prelude::*;
 use diesel_demo::establish_connection;
 use diesel_demo::schema::posts::dsl::posts;
 use diesel_demo::schema::posts::columns::published;
-use diesel_demo::models::Post;
+use diesel_demo::models::post::Post;
 
 fn main() {
     let id = args()

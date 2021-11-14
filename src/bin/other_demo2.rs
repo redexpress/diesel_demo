@@ -3,7 +3,7 @@ use diesel::prelude::*;
 use diesel_demo::schema::users::dsl::users;
 use diesel_demo::schema::users::columns::{name, id};
 use diesel_demo::models::user::User;
-use diesel_demo::pool_connection;
+use diesel_demo::establish_connection;
 use diesel_demo::schema::blogs;
 
 fn main() {
@@ -12,7 +12,7 @@ fn main() {
 
 /// `foo = (SELECT ...)`这样子的查询语句
 pub fn single_value_example() {
-    let connection = pool_connection();
+    let connection = establish_connection();
 
     let last_blog = blogs::table.order(blogs::id.desc());
 
@@ -39,7 +39,7 @@ pub fn single_value_example() {
 }
 
 pub fn get_result_example() {
-    let connection = pool_connection();
+    let connection = establish_connection();
     let inserted_row = diesel::insert_into(users)
         .values(name.eq("Ruby"))
         .get_result::<User>(&connection)

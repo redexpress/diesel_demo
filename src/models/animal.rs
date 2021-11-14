@@ -2,7 +2,6 @@ use diesel::prelude::*;
 
 use crate::schema::animals::dsl::*;
 use diesel::prelude::*;
-use crate::pool_connection;
 
 #[derive(Debug, Queryable, PartialEq)]
 pub struct Animal {

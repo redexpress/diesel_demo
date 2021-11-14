@@ -2,7 +2,7 @@ use crate::schema::users::dsl::*;
 use crate::schema::{blogs, users};
 use diesel::debug_query;
 use diesel::prelude::*;
-use crate::pool_connection;
+use crate::establish_connection;
 
 #[derive(Debug, Queryable, PartialEq, Eq)]
 pub struct User {
@@ -38,7 +38,7 @@ impl Blog {
 /// `DISTINCT`关键字查询
 pub fn distinct_test() {
     println!("run_test");
-    let connection = pool_connection();
+    let connection = establish_connection();
     connection.execute("DELETE FROM users").unwrap(); //删除表数据
 
     /* 插入表数据 */
@@ -58,7 +58,7 @@ pub fn distinct_test() {
 }
 
 pub fn demo_select() {
-    let connection = pool_connection();
+    let connection = establish_connection();
 
     let all_users = users.load::<(i32, String)>(&connection);
     match all_users {
@@ -74,7 +74,7 @@ pub fn demo_select() {
 }
 
 pub fn demo_join() {
-    let connection = pool_connection();
+    let connection = establish_connection();
     /* 联表查询 */
     let result = connection.execute("DELETE FROM blogs"); //删除表blogs数据
     diesel::insert_into(blogs::table)
@@ -104,7 +104,7 @@ pub fn demo_join() {
 }
 
 pub fn demo_count() {
-    let connection = pool_connection();
+    let connection = establish_connection();
 
     let count_user: i64 = users
         .count()
@@ -136,7 +136,7 @@ pub fn inner_join_example() {
 
     use crate::schema::blogs::dsl::{blogs, title, user_id};
 
-    let connection = pool_connection();
+    let connection = establish_connection();
 
     let data = users
         .inner_join(blogs)
@@ -193,7 +193,7 @@ pub fn inner_join_example() {
 }
 
 pub fn filter_example() {
-    let connection = pool_connection();
+    let connection = establish_connection();
 
     let seans_id = users
         .filter(name.eq("Sean"))
@@ -219,7 +219,7 @@ pub fn find_example() {
     let sean = (1, "Sean".to_string());
     let tess = (2, "Tess".to_string());
 
-    let connection = pool_connection();
+    let connection = establish_connection();
     assert_eq!(Ok(sean), users.find(1).first(&connection));
     assert_eq!(Ok(tess), users.find(2).first(&connection));
 
@@ -236,7 +236,7 @@ pub fn find_example() {
 }
 
 pub fn order_example() {
-    let connection = pool_connection();
+    let connection = establish_connection();
     connection.execute("DELETE FROM users").unwrap();
     diesel::insert_into(users)
         .values(&vec![name.eq("Saul"), name.eq("Steve"), name.eq("Stan")])
@@ -274,7 +274,7 @@ pub fn order_example() {
 }
 
 pub fn limit_example() {
-    let connection = pool_connection();
+    let connection = establish_connection();
     diesel::delete(users).execute(&connection).unwrap();
     diesel::insert_into(users)
         .values(&vec![
@@ -304,7 +304,7 @@ pub fn limit_example() {
 }
 
 pub fn offset_example() {
-    let connection = pool_connection();
+    let connection = establish_connection();
     diesel::delete(users).execute(&connection).unwrap();
     diesel::insert_into(users)
         .values(&vec![
@@ -333,7 +333,7 @@ pub fn offset_example() {
 }
 
 pub fn skip_locked_example() {
-    let connection = pool_connection();
+    let connection = establish_connection();
 
     let query = users.for_update().skip_locked();
     let data = query.load::<(i32, String)>(&connection).unwrap();
@@ -344,7 +344,7 @@ pub fn skip_locked_example() {
 }
 
 pub fn no_wait_example() {
-    let connection = pool_connection();
+    let connection = establish_connection();
     let query = users.for_update().no_wait();
 
     let data = query.load::<(i32, String)>(&connection).unwrap();
@@ -358,7 +358,7 @@ pub fn no_wait_example() {
 /// 添加行锁，不能与（distinct,group by,unions等）使用。
 /// 得添加with-deprecated才能使用for_update,例：diesel = { version="1.4.6",features=["extras","postgres","r2d2","with-deprecated"] }
 pub fn for_update_example() {
-    let connection = pool_connection();
+    let connection = establish_connection();
     type DB = diesel::pg::Pg;
 
     // users.select(name).for_update.load::<String>(&connection);
@@ -375,7 +375,7 @@ pub fn for_update_example() {
 
 /// postgreSQL专有 for_no_key_update
 pub fn for_no_key_update_example() {
-    let connection = pool_connection();
+    let connection = establish_connection();
 
     let query = users.for_no_key_update();
     let data = query.load::<(i32, String)>(&connection);
@@ -388,7 +388,7 @@ pub fn for_no_key_update_example() {
 
 /// postgreSQL专有FOR SHARE
 pub fn for_share_example() {
-    let connection = pool_connection();
+    let connection = establish_connection();
 
     let query = users.for_share();
     let data = query.load::<(i32, String)>(&connection).unwrap();
@@ -409,7 +409,7 @@ pub fn for_share_example() {
 
 /// 应用场景在后台搜索条件查询时，连接条件
 pub fn into_boxed_example() {
-    let connection = pool_connection();
+    let connection = establish_connection();
 
     use std::collections::HashMap;
     let mut params = HashMap::new();

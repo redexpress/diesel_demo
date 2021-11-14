@@ -1,5 +1,5 @@
 use diesel::prelude::*;
-use diesel_demo::pool_connection;
+use diesel_demo::establish_connection;
 use diesel_demo::schema::animals::dsl::*;
 use diesel_demo::schema::animals::columns::*;
 use diesel_demo::models::animal::Animal;
@@ -12,7 +12,7 @@ fn main() {
 fn animal_distinct() {
     println!("' DISTINCT ON '子句查询");
 
-    let connection = pool_connection();
+    let connection = establish_connection();
     connection.execute("DELETE FROM animals").unwrap(); //删除animals表数据
     let result = diesel::insert_into(animals)
         .values(&vec![
@@ -45,7 +45,7 @@ fn animal_distinct() {
 }
 
 fn animal_filter() {
-    let connection = pool_connection();
+    let connection = establish_connection();
     diesel::delete(animals).execute(&connection).unwrap(); //删除表数据
     diesel::insert_into(animals)
         .values(&vec![

@@ -51,8 +51,9 @@ for (tx_idx, tx_hash, out_len) in txs.【REVERSE】
         if (output.typescript)
             【新增】 CellTypeScript(output.typeS, gen_block_num, gen_tx_idx, out_point.index) value: tx_hash
             【删除】 TxTypeScript(output.typeS, block_num, tx_idx, in_idx, IOType::Input)
-        【删除】 TxHash(tx_hash)
-    【删除】 Header(block_num, block_hash)
+        【新增】 OutPoint(out_point) value: Cell(cell)
+    【删除】 TxHash(tx_hash)
+【删除】 Header(block_num, block_hash)
 
 prune 逻辑：
 tip_num, tip_hash = tip()

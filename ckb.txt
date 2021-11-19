@@ -1,25 +1,79 @@
-append逻辑：
+append 逻辑：
 新增 Header(block_num, block_hash) value: block.txs
 txs = block.txs
-for(tx_idx, tx) in txs {
-  if tx_idx > 0 {
-    for(in_idx, in) int tx.ins {
-      out_point = in.previous_out
-      key_vec = out_point.into_vec
-      cell = store.find(key_vec)
-      if not cell {
-        cell = txs.find(out_point.tx_hash)
-        if not cell {
-          panic "stored live cell or consume output in same block"
-        }
-      }
-      gen_block_num, gen_tx_idx, output, output_data = parse(cell)
-      删除 CellLockScript(output.lockS, gen_block_num, gen_tx_idx, out_point.index).into_vec
-      新增 TxLockScript(output.lockS, block_num, tx_idx, in_idx, IOType::Input) value: tx_hash
-      if (output.typescript) {
-        删除 CellTypeScript(output.typeS, gen_block_num, gen_tx_idx, out_point.index).into_vec
-        新增 TxTypeScript(output.typeS, block_num, tx_idx, in_idx, IOType::Input) value: tx_hash
-      } 
-    }
-  }
-}
+for (tx_idx, tx) in txs
+    for (in_idx, INPUT) int tx.inputs if tx_idx > 0
+        out_point = INPUT.previous_out
+        cell = ONE_OF
+            【读取】 OutPoint(out_point)
+            txs.find(out_point.tx_hash)
+            panic "stored live cell or consume output in same block"
+        gen_block_num, gen_tx_idx, output = parse_cell_value(cell)
+        【删除】 CellLockScript(output.lockS, gen_block_num, gen_tx_idx, out_point.index)
+        【新增】 TxLockScript(output.lockS, block_num, tx_idx, in_idx, IOType::Input) value: tx_hash
+        if (output.typescript)
+            【删除】 CellTypeScript(output.typeS, gen_block_num, gen_tx_idx, out_point.index)
+            【新增】 TxTypeScript(output.typeS, block_num, tx_idx, in_idx, IOType::Input) value: tx_hash
+        【删除】 OutPoint(out_point)
+        【新增】 ConsumedOutPoint(block_num, out_point)
+    for (out_idx, OUTPUT) in tx.outputs
+        【新增】 CellLockScript(OUTPUT.lockS, block_num, tx_idx, out_idx) value: tx_hash
+        【新增】 TxLockScript(OUTPUT.lockS, block_num, tx_idx, out_idx, IOType::Output) value: tx_hash
+        if (OUTPUT.typescript)
+            【新增】 CellTypeScript(OUTPUT.typeS, block_num, tx_idx, out_idx) value: tx_hash
+            【新增】 TxTypeScript(OUTPUT.typeS, block_num, tx_idx, out_idx, IOType::Output) 
+        【新增】 OutPoint(out_point) value: Cell(block_num, tx_idx, OUTPUT, OUTPUT_data)
+    【新增】 TxHash(tx_hash) value: TransactionInputs([tx.input.previous_outs])
+
+rollback 逻辑：
+block_num, block_hash = tip()
+txs = 【读取】 Header(block_num, block_hash)
+for (tx_idx, tx_hash, out_len) in txs.【REVERSE】
+    for (out_idx in 0..out_len)                             // rockback live cells
+        out_point = OutPoint::new(tx_hash, out_idx)
+        _gen_block_num, _gen_tx_idx, ouput = parse_cell_value ONE_OF
+            【读取】 OutPoint(out_point)
+            【读取】 ConsumedOutPoint(block_number, out_point)
+            panic "stored live cell or consume output in same block"
+        【删除】 CellLockScript(output.lockS, block_num, tx_idx, out_idx)
+        【删除】 TxLockScript(output.lockS, block_num, tx_idx, out_idx, IOType::Output)
+        if (ouput.typescript)
+            【删除】 CellTypeScript(output.typeS, block_num, tx_idx, out_idx)
+            【删除】 TxTypeScript(output.typeS, block_num, tx_idx, out_idx, IOType::Output)
+        【删除】 OutPoint(out_point)
+    TXS = 【读取】 TxHash(tx_hash)
+    for (in_idx, out_point) in TXS if tx_idx > 0          // rollback inputs
+        out_point = INPUT.previous_out
+        cell = 【读取】 ConsumedOutPoint(block_num, out_point)
+        gen_block_num, gen_tx_idx, output = parse_cell_value(cell)
+        【新增】 CellLockScript(output.lockS, gen_block_num, gen_tx_idx, out_point.index) value: tx_hash
+        【删除】 TxLockScript(output.lockS, block_num, tx_idx, in_idx, IOType::Input)
+        if (output.typescript)
+            【新增】 CellTypeScript(output.typeS, gen_block_num, gen_tx_idx, out_point.index) value: tx_hash
+            【删除】 TxTypeScript(output.typeS, block_num, tx_idx, in_idx, IOType::Input)
+        【删除】 TxHash(tx_hash)
+    【删除】 Header(block_num, block_hash)
+
+prune 逻辑：
+tip_num, tip_hash = tip()
+if tip_num > KEEP_NUM
+    prune_to_block = tip_num - KEEP_NUM
+    // prune ConsumedOutPoint => Cell
+    key_prefix_consumed_out_point = vec![KeyPrefix::ConsumedOutPoint as u8];
+    iter = 【读取iter】 store.iter(&key_prefix_consumed_out_point)
+                            .take_while(|(key,_)| key.starts_with(&key_prefix_consumed_out_point));
+    for (_block_num, key) in iter.map(|(key,_)| {
+                (BlockNumber::from_be_bytes(key[1..9].try_into().expect("stored block_number")),    key)
+            }).take_while(|(block_number, _key)| prune_to_block.gt(block_number)) { batch.delete(key)?; }
+    // prune TxHash => TransactionInputs
+    mut key_prefix_header = vec![KeyPrefix::Header as u8];
+    key_prefix_header.extend_from_slice(&prune_to_block.to_be_bytes());
+    iter = 【读取iter】 .store.iter(&key_prefix_header, IteratorDirection::Reverse)?
+        .take_while(|(key, _value)| key.starts_with(&[KeyPrefix::Header as u8]));
+    for txs in iter.map(|(_key, value)| Value::parse_transactions_value(&value)) {
+        let (first_tx_hash, _) = txs.get(0).expect("none empty block");
+        if store.exists(TxHash(first_tx_hash))? {
+            for (tx_hash, _outputs_len) in txs
+                【删除】 TxHash(tx_hash)
+        } else break;
+    }//for

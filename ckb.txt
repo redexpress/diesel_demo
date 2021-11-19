@@ -1,0 +1,25 @@
+append逻辑：
+新增 Header(block_num, block_hash) value: block.txs
+txs = block.txs
+for(tx_idx, tx) in txs {
+  if tx_idx > 0 {
+    for(in_idx, in) int tx.ins {
+      out_point = in.previous_out
+      key_vec = out_point.into_vec
+      cell = store.find(key_vec)
+      if not cell {
+        cell = txs.find(out_point.tx_hash)
+        if not cell {
+          panic "stored live cell or consume output in same block"
+        }
+      }
+      gen_block_num, gen_tx_idx, output, output_data = parse(cell)
+      删除 CellLockScript(output.lockS, gen_block_num, gen_tx_idx, out_point.index).into_vec
+      新增 TxLockScript(output.lockS, block_num, tx_idx, in_idx, IOType::Input) value: tx_hash
+      if (output.typescript) {
+        删除 CellTypeScript(output.typeS, gen_block_num, gen_tx_idx, out_point.index).into_vec
+        新增 TxTypeScript(output.typeS, block_num, tx_idx, in_idx, IOType::Input) value: tx_hash
+      } 
+    }
+  }
+}
